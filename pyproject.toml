@@ -1,0 +1,16 @@
+[project]
+name = "leetcode-harness"
+version = "0.1.0"
+description = "Local harness for practising LeetCode problems: paste skeleton + examples, run/debug from your IDE."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+lc = "leetcode_harness.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["leetcode_harness"]

@@ -1,0 +1,12 @@
+# Test cases for 219. Contains Duplicate II
+# Paste LeetCode examples verbatim. Format:
+#   Input: nums = [1,2,3,1], k = 3
+#   Output: true
+# Separate cases with a new "Input:" line. Lines starting with # are ignored.
+
+Input: nums = [1,2,3,1], k = 3
+Output: true
+Input: nums = [1,0,1,1], k = 1
+Output: true
+Input: nums = [1,2,3,1,2,3], k = 2
+Output: false

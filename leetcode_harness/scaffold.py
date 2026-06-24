@@ -62,6 +62,7 @@ def _solution_file(problem: Problem, skeleton: str) -> str:
         if __name__ == "__main__":
             # Tests live in test_cases.txt next to this file (LeetCode example syntax).
             # For problems where any valid ordering is accepted, use unordered=True.
+            # To debug one failing case, isolate it with e.g. only=3 (or only=[1,3]).
             run_tests(Solution)
         '''
     ).format(header=header, url_line=url_line, skeleton=skeleton)

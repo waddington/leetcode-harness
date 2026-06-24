@@ -108,6 +108,13 @@ Running 3 case(s) against Solution.containsNearbyDuplicate()
 
 ## Notes
 
+- **Debug one case in isolation:** when only case 3 is failing, run just that
+  one so you can step through it cleanly. Three ways:
+  - In `solution.py`: `run_tests(Solution, only=3)` (or `only=[1, 3]`), then Debug.
+  - From the terminal: `uv run lc run 219 --only 3` (or `--only 1,3`).
+  - Via env var (e.g. a PyCharm run-config "Environment variable"): `LC_ONLY=3`.
+    `LC_ONLY` overrides the `only=` argument, so you can isolate without editing
+    the file. Case numbers are 1-based, matching the printed `case N` labels.
 - **Order-insensitive output** (problems where any valid ordering is accepted):
   call `run_tests(Solution, unordered=True)` in the `__main__` block.
 - **Multiple methods on `Solution`**: pass `run_tests(Solution, method="myMethod")`.

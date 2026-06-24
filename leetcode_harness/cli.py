@@ -65,6 +65,10 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if not os.path.exists(sol):
         print(f"No solution.py in {target}")
         return 1
+    # The runner reads LC_ONLY to isolate case(s); set it from --only so we
+    # don't have to touch the solution's run_tests(...) call.
+    if args.only:
+        os.environ["LC_ONLY"] = args.only
     # Execute solution.py as __main__ so its run_tests(Solution) call fires.
     runpy.run_path(sol, run_name="__main__")
     return 0
@@ -92,6 +96,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_run = sub.add_parser("run", help="Run a scaffolded problem's tests")
     p_run.add_argument("problem", help="Problem number or directory name")
+    p_run.add_argument("--only", help="Run only these 1-based case(s), e.g. 3 or 1,3")
     p_run.set_defaults(func=_cmd_run)
 
     p_list = sub.add_parser("list", help="List scaffolded problems")

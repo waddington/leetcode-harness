@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import inspect
 import os
+import re
 import sys
 import traceback
 
@@ -101,17 +102,39 @@ def _normalise_unordered(value):
     return value
 
 
+def _parse_only(only) -> set[int] | None:
+    """Normalise the `only` selector into a set of 1-based case numbers.
+
+    Accepts an int (3), an iterable of ints ([1, 3]), or a string like
+    "3" or "1,3" (from the LC_ONLY env var / CLI). Returns None for "run all".
+    """
+    if only is None:
+        return None
+    if isinstance(only, int):
+        return {only}
+    if isinstance(only, str):
+        nums = {int(p) for p in re.split(r"[,\s]+", only.strip()) if p}
+        return nums or None
+    return {int(n) for n in only}
+
+
 def run_tests(
     solution_cls,
     cases_path: str | None = None,
     *,
     method: str | None = None,
     unordered: bool = False,
+    only=None,
 ) -> int:
     """Run `solution_cls` against test cases. Returns the number of failures.
 
     cases_path defaults to `test_cases.txt` next to the caller's file.
     Set unordered=True for problems where any ordering of the output is valid.
+
+    `only` runs just the given case(s) — by their 1-based number as printed
+    ("case 3"). Accepts an int, a list of ints, or a string ("3" or "1,3").
+    The LC_ONLY environment variable overrides this when set, so you can
+    isolate a case from a run config / CLI without editing the file.
     """
     if cases_path is None:
         caller_file = inspect.stack()[1].filename
@@ -129,13 +152,32 @@ def run_tests(
                    "Paste some Input:/Output: examples into it."))
         return 0
 
+    # LC_ONLY env var wins over the argument (lets you isolate without editing).
+    selected = _parse_only(os.environ.get("LC_ONLY") or only)
+    if selected is not None:
+        valid = {n for n in selected if 1 <= n <= len(cases)}
+        bad = selected - valid
+        if bad:
+            print(_dim(f"  ignoring out-of-range case number(s): {sorted(bad)} "
+                       f"(have {len(cases)} case(s))"))
+        if not valid:
+            print(_red(f"No valid case to run from only={sorted(selected)}."))
+            return 1
+        selected = valid
+
     method_name = method or _pick_method(solution_cls)
     failures = 0
 
-    print(_bold(f"Running {len(cases)} case(s) against "
-                f"{solution_cls.__name__}.{method_name}()\n"))
+    if selected is None:
+        print(_bold(f"Running {len(cases)} case(s) against "
+                    f"{solution_cls.__name__}.{method_name}()\n"))
+    else:
+        print(_bold(f"Running case(s) {sorted(selected)} of {len(cases)} against "
+                    f"{solution_cls.__name__}.{method_name}()\n"))
 
     for i, case in enumerate(cases, 1):
+        if selected is not None and i not in selected:
+            continue
         instance = solution_cls()
         func = getattr(instance, method_name)
         bound, unknown = _bind_args(func, case.kwargs, instance)
@@ -166,7 +208,8 @@ def run_tests(
             print(f"    expected: {case.expected!r}")
             print(f"    got:      {actual!r}\n")
 
-    passed = len(cases) - failures
-    summary = f"{passed}/{len(cases)} passed"
+    ran = len(selected) if selected is not None else len(cases)
+    passed = ran - failures
+    summary = f"{passed}/{ran} passed"
     print(_bold(_green(summary) if failures == 0 else _red(summary)))
     return failures

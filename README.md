@@ -14,18 +14,12 @@ uv sync
 This creates `.venv` and installs the harness as an editable package, so
 `from leetcode_harness import run_tests` resolves anywhere.
 
-**IntelliJ IDEA / PyCharm** (needs the Python plugin in IntelliJ):
-set the project interpreter to `.venv/bin/python`
+**PyCharm:** set the project interpreter to `.venv/bin/python`
 (Settings → Project → Python Interpreter → Add → Existing → pick `.venv/bin/python`).
 A shared run config **"Debug current solution"** is included — it runs whatever
 `solution.py` you have open, using `.venv`. Open a `problems/*/solution.py`, set
 breakpoints, and hit **Run** ▶ / **Debug** 🐞. (You can also just use the green
 gutter arrow next to `if __name__ == "__main__":`.)
-
-> Note: IntelliJ may have created the module as a *Java* module. If Run is greyed
-> out, mark the module as a Python module / set the SDK to `.venv/bin/python` in
-> Project Structure. The bundled run config points at `.venv` directly, so it
-> works regardless of the module SDK once the interpreter is registered.
 
 **VS Code:** a launch config ("Debug current LeetCode solution") is included —
 open a `solution.py` and press F5.

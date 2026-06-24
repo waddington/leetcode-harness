@@ -10,24 +10,38 @@ from leetcode_harness import run_tests
 
 
 class Solution:
+    # brute-force, iterate all, badly efficient
     # def containsNearbyDuplicate_v1(self, nums: List[int], k: int) -> bool:
     #     for idx_i, num_i in enumerate(nums):
     #         for idx_j in range(idx_i+1, min(len(nums), idx_i+k+1)):
     #             num_j = nums[idx_j]
     #             if num_i == num_j and abs(idx_i - idx_j) <= k:
-    #                 print(f"idx_i: {idx_i}, idx_j: {idx_i}, num_i: {num_i}, num_j: {num_j}")
+    #                 print(f"idx_i: {idx_i}, idx_j: {idx_j}, num_i: {num_i}, num_j: {num_j}")
     #                 print("About to return True")
     #                 return True
     #     return False
 
+    # dont check twice
+    # def containsNearbyDuplicate_v2(self, nums: List[int], k: int) -> bool:
+    #     seen: Dict[int, int] = {}  # number --> idx[]
+    #     for idx_i, num in enumerate(nums):
+    #         seen_index = seen.get(num, None)
+    #         if seen_index is None:
+    #             seen[num] = idx_i
+    #         else:
+    #             if abs(idx_i - seen_index) <= k:
+    #                 # print(f"idx_i: {idx_i}, num: {num}, idx: {seen_index}")
+    #                 # print("About to return True")
+    #                 return True
+    #             seen[num] = idx_i
+    #     return False
+
     def containsNearbyDuplicate(self, nums: List[int], k: int) -> bool:
-        for idx_i, num_i in enumerate(nums):
-            for idx_j in range(idx_i+1, min(len(nums), idx_i+k+1)):
-                num_j = nums[idx_j]
-                if num_i == num_j and abs(idx_i - idx_j) <= k:
-                    print(f"idx_i: {idx_i}, idx_j: {idx_i}, num_i: {num_i}, num_j: {num_j}")
-                    print("About to return True")
-                    return True
+        seen: Dict[int, int] = {}  # number --> idx[]
+        for idx_i, num in enumerate(nums):
+            if num in seen and abs(idx_i - seen[num]) <= k:
+                return True
+            seen[num] = idx_i
         return False
         
 

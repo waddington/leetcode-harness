@@ -306,3 +306,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# Your own practice problems stay local — only the 219 example ships.
+problems/*
+!problems/0219-contains-duplicate-ii/
+!problems/0219-contains-duplicate-ii/**

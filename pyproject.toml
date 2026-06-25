@@ -8,6 +8,13 @@ dependencies = []
 [project.scripts]
 lc = "leetcode_harness.cli:main"
 
+[tool.uv]
+# macOS: uv otherwise marks the editable-install .pth file with the BSD UF_HIDDEN
+# flag, and CPython 3.12.5+ deliberately skips hidden .pth files, so
+# `leetcode_harness` never lands on sys.path and `lc` fails with ModuleNotFoundError.
+# "copy" link-mode writes the .pth unhidden. No-op on Linux.
+link-mode = "copy"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

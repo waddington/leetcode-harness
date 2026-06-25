@@ -111,6 +111,33 @@ Output: true
 - Nested lists, quoted strings, etc. all parse. Lines starting with `#` are comments.
 - Example arg names (`nums`, `k`) are matched to your method's parameter names.
 
+#### Linked lists & trees
+
+Problems whose input is a **linked list or binary tree** work automatically —
+no hand-written fixtures. Annotate your method with `ListNode` / `TreeNode` (the
+LeetCode skeleton already does) and the harness builds the real structure from
+the array in `test_cases.txt`, then serialises node results back to arrays to
+check against `Output:`.
+
+```
+Input: head = [1,2,3,4,5]                # reverseList(head) -> Optional[ListNode]
+Output: [5,4,3,2,1]
+
+Input: root = [3,9,20,null,null,15,7]    # trees: level-order, null = missing child
+Output: 3
+```
+
+- **Cycles** (*Linked List Cycle* etc.): a `pos` value links the tail back to
+  that index — `Input: head = [3,2,0,-4], pos = 1`. `pos = -1` means no cycle.
+- **Returning a node from a cyclic list** (*Linked List Cycle II*): the result
+  is reported as that node's **index** in the list, and LeetCode's verbatim
+  `Output: tail connects to node index 1` / `Output: no cycle` are understood.
+- Plain `List[int]` params (e.g. two-sum's `nums`) are **not** converted — only
+  `ListNode` / `TreeNode`-annotated params are.
+- `ListNode`, `TreeNode` and the builders (`build_linked_list`, `build_tree`,
+  `linked_list_to_list`, `tree_to_list`) are importable from `leetcode_harness`
+  if you'd rather construct inputs by hand in `__main__`.
+
 ### 4. Run / debug
 
 From your IDE: open `solution.py`, set breakpoints in your method, hit **Debug**.

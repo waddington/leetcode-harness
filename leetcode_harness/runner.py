@@ -14,6 +14,14 @@ import sys
 import traceback
 
 from .parser import TestCase, parse_cases
+from .structures import (
+    ListNode,
+    TreeNode,
+    build_linked_list_with_nodes,
+    linked_list_to_list,
+    build_tree,
+    tree_to_list,
+)
 
 # ANSI colours, disabled when not a tty or NO_COLOR is set.
 _USE_COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
@@ -118,6 +126,118 @@ def _parse_only(only) -> set[int] | None:
     return {int(n) for n in only}
 
 
+def _annotation_kind(annotation):
+    """Classify an annotation as a linked-list ('list') or tree ('tree') node.
+
+    Works with string annotations (the norm under `from __future__ import
+    annotations`) and with live class objects; returns None for anything else.
+    """
+    if annotation is inspect.Parameter.empty or annotation is inspect.Signature.empty:
+        return None
+    text = annotation if isinstance(annotation, str) else getattr(
+        annotation, "__name__", str(annotation)
+    )
+    if "ListNode" in text:
+        return "list"
+    if "TreeNode" in text:
+        return "tree"
+    return None
+
+
+def _convert_inputs(func, bound, all_kwargs, unknown):
+    """Turn array literals into ListNode/TreeNode where the signature asks.
+
+    A `pos` value (LeetCode's cycle index for linked-list problems) is consumed
+    to wire a cycle into the matching linked-list argument instead of being
+    reported as an unknown arg.
+
+    Returns (converted_kwargs, unknown, ctx). `ctx` carries the built nodes and
+    an `index_mode` flag: when the input has a `pos` and the method returns a
+    node (e.g. Linked List Cycle II), the result is reported as the *index* of
+    that node rather than serialised as an array (which a cycle can't be).
+    """
+    sig = inspect.signature(func)
+    ann = {p.name: p.annotation for p in sig.parameters.values()}
+    has_pos = "pos" in all_kwargs
+    pos = all_kwargs.get("pos", -1)
+    pos = pos if isinstance(pos, int) else -1
+    used_pos = False
+    nodes = []
+    out = {}
+    for name, val in bound.items():
+        kind = _annotation_kind(ann.get(name))
+        if kind == "list" and isinstance(val, list):
+            head, built = build_linked_list_with_nodes(val, pos)
+            out[name] = head
+            nodes = built
+            used_pos = True
+        elif kind == "tree" and isinstance(val, list):
+            out[name] = build_tree(val)
+        else:
+            out[name] = val
+    if used_pos and "pos" in unknown:
+        unknown = [u for u in unknown if u != "pos"]
+    ret_kind = _annotation_kind(sig.return_annotation)
+    ctx = {"index_mode": has_pos and ret_kind == "list", "nodes": nodes}
+    return out, unknown, ctx
+
+
+def _convert_output(func, actual, ctx):
+    """Serialise a ListNode/TreeNode result back to LeetCode notation.
+
+    In `index_mode` (cycle problems that return a node, e.g. Cycle II) the node
+    is reported as its index in the input list, or None for no cycle.
+    """
+    kind = _annotation_kind(inspect.signature(func).return_annotation)
+    if kind is None:
+        if isinstance(actual, ListNode):
+            kind = "list"
+        elif isinstance(actual, TreeNode):
+            kind = "tree"
+    if kind == "list":
+        if ctx.get("index_mode"):
+            if actual is None:
+                return None
+            for i, node in enumerate(ctx.get("nodes", [])):
+                if node is actual:
+                    return i
+            return -2  # node not part of the input list -> clearly wrong
+        return linked_list_to_list(actual)
+    if kind == "tree":
+        return tree_to_list(actual)
+    return actual
+
+
+def _index_expected(expected):
+    """Normalise a cycle-start expected output to an index (int) or None.
+
+    Accepts LeetCode's verbatim example text ("tail connects to node index 1",
+    "no cycle"), a bare int, or null/None.
+    """
+    if expected is None:
+        return None
+    if isinstance(expected, bool):
+        return expected
+    if isinstance(expected, int):
+        return None if expected < 0 else expected
+    if isinstance(expected, str):
+        s = expected.strip().lower()
+        if "no cycle" in s or s in ("null", "none"):
+            return None
+        m = re.search(r"index\s+(-?\d+)", s)
+        if m:
+            idx = int(m.group(1))
+            return None if idx < 0 else idx
+    return expected
+
+
+def _normalise_expected(expected, ctx):
+    """Map a parsed expected value to its comparable form given the run ctx."""
+    if ctx.get("index_mode"):
+        return _index_expected(expected)
+    return expected
+
+
 def run_tests(
     solution_cls,
     cases_path: str | None = None,
@@ -181,6 +301,7 @@ def run_tests(
         instance = solution_cls()
         func = getattr(instance, method_name)
         bound, unknown = _bind_args(func, case.kwargs, instance)
+        bound, unknown, ctx = _convert_inputs(func, bound, case.kwargs, unknown)
         if unknown:
             print(_dim(f"  case {i}: ignoring unknown arg(s): {unknown}"))
 
@@ -194,18 +315,21 @@ def run_tests(
             print()
             continue
 
+        actual = _convert_output(func, actual, ctx)
+
         if not case.has_expected:
             print(_dim(f"· case {i}  input: {case.raw}"))
             print(f"    output: {actual!r}  (no expected value to check)\n")
             continue
 
-        if _equal(actual, case.expected, unordered=unordered):
+        expected = _normalise_expected(case.expected, ctx)
+        if _equal(actual, expected, unordered=unordered):
             print(_green(f"✓ case {i}") + _dim(f"  {case.raw}"))
             print(_dim(f"    -> {actual!r}\n"))
         else:
             failures += 1
             print(_red(f"✗ case {i}") + _dim(f"  {case.raw}"))
-            print(f"    expected: {case.expected!r}")
+            print(f"    expected: {expected!r}")
             print(f"    got:      {actual!r}\n")
 
     ran = len(selected) if selected is not None else len(cases)

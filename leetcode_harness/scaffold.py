@@ -24,7 +24,12 @@ def _slugify(text: str) -> str:
 
 
 def _dir_name(number: int, slug: str) -> str:
-    return f"{number:04d}-{slug}"
+    return f"{number:04d}-{_slugify(slug)}"
+
+
+def _one_line(text: str) -> str:
+    """Collapse whitespace so API text can't break out of a header comment."""
+    return " ".join(str(text).split())
 
 
 def _existing_dir(number: int) -> str | None:
@@ -61,10 +66,10 @@ _DEFAULT_TS_SKELETON = textwrap.dedent(
 
 
 def _solution_file(problem: Problem, skeleton: str) -> str:
-    header = f"# {problem.number}. {problem.title}"
+    header = f"# {problem.number}. {_one_line(problem.title)}"
     if problem.difficulty:
-        header += f"  [{problem.difficulty}]"
-    url_line = f"# {problem.url}" if problem.url else ""
+        header += f"  [{_one_line(problem.difficulty)}]"
+    url_line = f"# {_one_line(problem.url)}" if problem.url else ""
 
     skeleton = skeleton.strip("\n") or _DEFAULT_SKELETON.rstrip("\n")
 
@@ -99,10 +104,10 @@ def _strip_ts_comments(code: str) -> str:
 
 
 def _ts_solution_file(problem: Problem, skeleton: str) -> str:
-    header = f"// {problem.number}. {problem.title}"
+    header = f"// {problem.number}. {_one_line(problem.title)}"
     if problem.difficulty:
-        header += f"  [{problem.difficulty}]"
-    url_line = f"// {problem.url}" if problem.url else ""
+        header += f"  [{_one_line(problem.difficulty)}]"
+    url_line = f"// {_one_line(problem.url)}" if problem.url else ""
 
     skeleton = skeleton.strip("\n") or _DEFAULT_TS_SKELETON.rstrip("\n")
     code = _strip_ts_comments(skeleton)
@@ -111,7 +116,7 @@ def _ts_solution_file(problem: Problem, skeleton: str) -> str:
     # in a comment, so import the real ones from the harness.
     imports = ["runTests"] + [n for n in ("ListNode", "TreeNode") if re.search(rf"\b{n}\b", code)]
 
-    m = re.search(r"\bfunction\s+([A-Za-z_$][\w$]*)\s*\(", code)
+    m = re.search(r"\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)\s*(?:<[^(]*>)?\s*\(", code)
     if m:
         run_line = f"runTests({m.group(1)});"
     else:
@@ -161,7 +166,7 @@ def _test_cases_file(problem: Problem) -> str:
         # Separate cases with a new "Input:" line. Lines starting with # are ignored.
 
         """
-    ).format(number=problem.number, title=problem.title) + body + "\n"
+    ).format(number=problem.number, title=_one_line(problem.title)) + body + "\n"
 
 
 def create_problem(
@@ -170,8 +175,10 @@ def create_problem(
     """Create problems/NNNN-slug/ with a solution file and test_cases.txt.
 
     `lang` is "py" or "ts". If the problem is already scaffolded (e.g. in the
-    other language), the solution file is added to that directory and its
-    test_cases.txt is kept unless `force`.
+    other language), the solution file is added to that directory. An existing
+    test_cases.txt is never overwritten (not even with `force`, which only
+    applies to the solution file): it's shared by every language and may hold
+    cases you added by hand.
 
     Returns (directory, paths written). Fetches metadata from LeetCode unless
     offline (or the fetch fails, in which case it falls back gracefully).
@@ -206,7 +213,7 @@ def create_problem(
     written = [sol_path]
     with open(sol_path, "w", encoding="utf-8") as f:
         f.write(content)
-    if force or not os.path.exists(tc_path):
+    if not os.path.exists(tc_path):
         with open(tc_path, "w", encoding="utf-8") as f:
             f.write(_test_cases_file(problem))
         written.append(tc_path)

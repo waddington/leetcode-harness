@@ -3,7 +3,8 @@
     uv run lc new 219          # scaffold problem 219 (fetches skeleton+examples)
     uv run lc new 219 --lang ts   # ...as TypeScript (solution.ts)
     uv run lc new 219 --offline
-    uv run lc run 219          # run a problem's tests (language auto-detected)
+    uv run lc run 219          # run a problem's tests (every language it has)
+    uv run lc run 219 --lang ts   # ...just the TypeScript one
     uv run lc list             # list scaffolded problems
 """
 
@@ -11,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import runpy
 import shutil
 import subprocess
@@ -57,10 +59,12 @@ def _cmd_new(args: argparse.Namespace) -> int:
     for path in written:
         print(f"  - {os.path.relpath(path)}")
     if not any(p.endswith("test_cases.txt") for p in written):
-        print(f"  (kept existing {os.path.join(rel, 'test_cases.txt')})")
+        print(f"  (kept existing {os.path.join(rel, 'test_cases.txt')}; "
+              f"delete it and re-run to re-fetch the examples)")
+    lang_flag = f" --lang {args.lang}" if len(_langs_in(target)) > 1 else ""
     print()
     print(f"Next: open {sol_name}, paste the skeleton, implement, then Run/Debug it")
-    print(f"in your IDE — or:  uv run lc run {args.number} --lang {args.lang}")
+    print(f"in your IDE — or:  uv run lc run {args.number}{lang_flag}")
     return 0
 
 
@@ -72,15 +76,44 @@ def _langs_in(problem_dir: str) -> list[str]:
     ]
 
 
+# Node runs .ts files natively (type stripping on by default) from 22.18.
+_MIN_NODE = (22, 18)
+
+
+def _node_version(node: str) -> tuple[int, ...] | None:
+    try:
+        out = subprocess.run([node, "--version"], capture_output=True, text=True).stdout
+    except OSError:
+        return None
+    m = re.match(r"v(\d+)\.(\d+)", out.strip())
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
 def _run_ts(sol: str) -> int:
     """Run a solution.ts with Node (which strips the types itself)."""
+    need = ".".join(map(str, _MIN_NODE))
     node = shutil.which("node")
     if node is None:
-        print("Couldn't find `node` on PATH. TypeScript solutions need Node 22.18+")
+        print(f"Couldn't find `node` on PATH. TypeScript solutions need Node {need}+")
         print("(e.g. `asdf install nodejs latest`), or run solution.ts from your IDE.")
         return 1
+    version = _node_version(node)
+    if version is not None and version < _MIN_NODE:
+        found = ".".join(map(str, version))
+        print(f"`node` on PATH is v{found}; running .ts files directly needs Node {need}+.")
+        return 1
+    # Flush so our output (e.g. the per-language header) lands before node's.
+    sys.stdout.flush()
     # LC_ONLY (set from --only) is inherited by the child process.
     return subprocess.run([node, sol], cwd=os.path.dirname(PROBLEMS_DIR)).returncode
+
+
+def _run_solution(lang: str, sol: str) -> int:
+    if lang == "ts":
+        return _run_ts(sol)
+    # Execute solution.py as __main__ so its run_tests(Solution) call fires.
+    runpy.run_path(sol, run_name="__main__")
+    return 0
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
@@ -88,31 +121,27 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if target is None:
         print(f"No problem matching {args.problem!r} in {PROBLEMS_DIR}")
         return 1
-    langs = _langs_in(target)
-    if args.lang:
-        lang = args.lang
-    elif len(langs) == 1:
-        lang = langs[0]
-    elif not langs:
+    # Without --lang, run every language the problem has (no default language).
+    langs = [args.lang] if args.lang else _langs_in(target)
+    if not langs:
         print(f"No solution file in {target}")
         return 1
-    else:
-        print(f"{os.path.relpath(target)} has solutions in {', '.join(langs)}; "
-              f"pick one with --lang.")
-        return 1
-    sol = os.path.join(target, SOLUTION_FILES[lang])
-    if not os.path.exists(sol):
-        print(f"No {SOLUTION_FILES[lang]} in {target}")
+    if args.lang and not os.path.exists(os.path.join(target, SOLUTION_FILES[args.lang])):
+        number = os.path.basename(target).split("-", 1)[0].lstrip("0") or "0"
+        print(f"No {SOLUTION_FILES[args.lang]} in {target}")
+        print(f"Create it with:  uv run lc new {number} --lang {args.lang}")
         return 1
     # The runner reads LC_ONLY to isolate case(s); set it from --only so we
     # don't have to touch the solution's run_tests(...) call.
     if args.only:
         os.environ["LC_ONLY"] = args.only
-    if lang == "ts":
-        return _run_ts(sol)
-    # Execute solution.py as __main__ so its run_tests(Solution) call fires.
-    runpy.run_path(sol, run_name="__main__")
-    return 0
+    rc = 0
+    for i, lang in enumerate(langs):
+        name = SOLUTION_FILES[lang]
+        if len(langs) > 1:
+            print(("\n" if i else "") + f"── {name} " + "─" * (40 - len(name)))
+        rc = max(rc, _run_solution(lang, os.path.join(target, name)))
+    return rc
 
 
 def _cmd_list(args: argparse.Namespace) -> int:
@@ -136,14 +165,15 @@ def main(argv: list[str] | None = None) -> int:
     p_new.add_argument("--lang", choices=sorted(SOLUTION_FILES), default="py",
                        help="Solution language (default: py)")
     p_new.add_argument("--offline", action="store_true", help="Skip fetching; blank template")
-    p_new.add_argument("--force", action="store_true", help="Overwrite if it exists")
+    p_new.add_argument("--force", action="store_true",
+                       help="Overwrite the solution file if it exists (test_cases.txt is always kept)")
     p_new.set_defaults(func=_cmd_new)
 
     p_run = sub.add_parser("run", help="Run a scaffolded problem's tests")
     p_run.add_argument("problem", help="Problem number or directory name")
     p_run.add_argument("--only", help="Run only these 1-based case(s), e.g. 3 or 1,3")
     p_run.add_argument("--lang", choices=sorted(SOLUTION_FILES),
-                       help="Which solution to run when a problem has more than one")
+                       help="Run only this language's solution (default: all present)")
     p_run.set_defaults(func=_cmd_run)
 
     p_list = sub.add_parser("list", help="List scaffolded problems")

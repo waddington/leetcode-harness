@@ -100,7 +100,9 @@ class LiteralParser {
       const key = this.value();
       this.ws();
       if (this.src[this.i++] !== ":") throw new Error("expected : in object");
-      out[String(key)] = this.value();
+      const value = this.value();
+      // Skip `__proto__` so a key can't swap the object's prototype.
+      if (String(key) !== "__proto__") out[String(key)] = value;
       this.ws();
       const ch = this.src[this.i++];
       if (ch === "}") return out;
@@ -199,7 +201,7 @@ export function parseAssignments(text: string): Record<string, unknown> {
     // A top-level `=` that isn't `==`, `<=`, `>=`, `!=`.
     const m = /^\s*([A-Za-z_]\w*)\s*=(?!=)\s*([\s\S]*)$/.exec(seg);
     if (m) {
-      result[m[1]] = parseValue(m[2]);
+      if (m[1] !== "__proto__") result[m[1]] = parseValue(m[2]);
     } else {
       positional.push(parseValue(seg));
     }

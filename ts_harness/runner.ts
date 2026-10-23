@@ -21,6 +21,7 @@ import { parseCases } from "./parser.ts";
 import {
   ListNode,
   TreeNode,
+  buildLinkedList,
   buildLinkedListWithNodes,
   buildTree,
   linkedListToList,
@@ -61,26 +62,56 @@ export interface Signature {
   returnType: string;
 }
 
-type NodeKind = "list" | "tree" | null;
+type NodeKind = "list" | "tree" | "lists" | "trees" | null;
 
 // --- signature parsing --------------------------------------------------------
 
+/**
+ * Blank out comments, leaving string/template literals intact. LeetCode
+ * skeletons put the ListNode/TreeNode definitions in a block comment, and a
+ * `//` inside a string must not swallow the rest of the line.
+ */
 function stripComments(src: string): string {
-  // Block comments (LeetCode skeletons put the ListNode definition in one),
-  // then line comments not preceded by ':' (so URLs in strings survive).
-  return src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`\\])\/\/.*$/gm, "$1");
+  let out = "";
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === '"' || ch === "'" || ch === "`") {
+      let j = i + 1;
+      while (j < src.length && src[j] !== ch) j += src[j] === "\\" ? 2 : 1;
+      out += src.slice(i, j + 1);
+      i = j;
+    } else if (ch === "/" && src[i + 1] === "/") {
+      while (i < src.length && src[i] !== "\n") i++;
+      out += "\n";
+    } else if (ch === "/" && src[i + 1] === "*") {
+      const end = src.indexOf("*/", i + 2);
+      i = end < 0 ? src.length : end + 1;
+      out += " ";
+    } else {
+      out += ch;
+    }
+  }
+  return out;
 }
 
-/** Split a parameter list on top-level commas, respecting generics like Map<K, V>. */
+/** Split a parameter list on top-level commas, respecting generics and strings. */
 function splitParams(text: string): string[] {
   const parts: string[] = [];
   let depth = 0;
+  let inStr: string | null = null;
   let start = 0;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
-    if ("([{<".includes(ch)) depth++;
-    else if (")]}".includes(ch) || (ch === ">" && text[i - 1] !== "=")) depth--;
-    else if (ch === "," && depth === 0) {
+    if (inStr) {
+      if (ch === "\\") i++;
+      else if (ch === inStr) inStr = null;
+    } else if (ch === '"' || ch === "'" || ch === "`") {
+      inStr = ch;
+    } else if ("([{<".includes(ch)) {
+      depth++;
+    } else if (")]}".includes(ch) || (ch === ">" && text[i - 1] !== "=")) {
+      depth--;
+    } else if (ch === "," && depth === 0) {
       parts.push(text.slice(start, i));
       start = i + 1;
     }
@@ -89,16 +120,20 @@ function splitParams(text: string): string[] {
   return parts.filter((p) => p.trim());
 }
 
+const IDENTIFIER_RE = /^[\p{ID_Start}$_][\p{ID_Continue}$‌‍]*$/u;
+
 /**
  * Find `function name(...)` (or `const name = (...) =>`) in `source` and
  * return its parameter names/annotations and return annotation.
  */
 export function parseSignature(source: string, fnName: string): Signature | null {
+  // fn.name can be "" (anonymous) or "bound f" (.bind): nothing to look up.
+  if (!IDENTIFIER_RE.test(fnName)) return null;
   const src = stripComments(source);
-  const name = fnName.replace(/[$]/g, "\\$");
+  const name = fnName.replace(/[$]/g, "\\$"); // the only regex metachar an identifier can hold
   const re = new RegExp(
-    `(?:\\bfunction\\s*\\*?\\s*${name}\\s*(?:<[^>]*>)?\\s*\\(` +
-      `|\\b(?:const|let|var)\\s+${name}\\s*(?::[^=]+)?=\\s*(?:async\\s+)?(?:function\\b[^(]*)?\\()`,
+    `(?:\\bfunction\\s*\\*?\\s*${name}\\s*(?:<[^(]*>)?\\s*\\(` +
+      `|\\b(?:const|let|var)\\s+${name}\\s*(?::[^=]*(?:=>[^=]*)*)?=\\s*(?:async\\s+)?(?:function\\b[^(]*)?\\()`,
   );
   const m = re.exec(src);
   if (!m) return null;
@@ -122,11 +157,14 @@ export function parseSignature(source: string, fnName: string): Signature | null
     if (pm && (pm[1] || pm[3] || pm[5])) param.optional = true;
     params.push(param);
   }
-  const rm = /^\s*:\s*([^{=]+?)\s*(?:\{|=>)/.exec(src.slice(close + 1));
+  const rm = /^\s*:([^{=]*)(?:\{|=>)/.exec(src.slice(close + 1));
   return { params, returnType: rm ? rm[1].trim() : "" };
 }
 
-/** Fallback when the source can't be read: names only, from fn.toString(). */
+/**
+ * Fallback when the function isn't found in the caller's source: names only,
+ * from fn.toString() (Node has already blanked the type annotations there).
+ */
 function signatureFromFunction(fn: SolutionFn): Signature {
   const sig = parseSignature(fn.toString(), fn.name);
   if (sig) return sig;
@@ -142,10 +180,18 @@ function signatureFromFunction(fn: SolutionFn): Signature {
 const LIST_NAMES = new Set(["head", "headA", "headB", "l1", "l2", "list1", "list2"]);
 const TREE_NAMES = new Set(["root", "root1", "root2"]);
 
+/**
+ * Classify an annotation: a single node ("list"/"tree"), an array of them
+ * ("lists"/"trees", e.g. Merge k Sorted Lists' `Array<ListNode | null>`), or
+ * neither.
+ */
 function annotationKind(type: string): NodeKind {
-  if (type.includes("ListNode")) return "list";
-  if (type.includes("TreeNode")) return "tree";
-  return null;
+  const t = type.replace(/\s+/g, "");
+  const node = t.includes("ListNode") ? "list" : t.includes("TreeNode") ? "tree" : null;
+  if (node === null) return null;
+  const isArray = /^(Readonly)?Array</.test(t) || /\[\]$/.test(t.replace(/(\|(null|undefined))+$/, ""));
+  if (!isArray) return node;
+  return node === "list" ? "lists" : "trees";
 }
 
 function paramKind(p: Param): NodeKind {
@@ -180,7 +226,8 @@ function callerFile(): string | null {
 // --- binding & conversion -----------------------------------------------------
 
 interface Ctx {
-  indexMode: boolean;
+  /** Input had a `pos` that was wired into a linked-list argument. */
+  hasCycleInput: boolean;
   nodes: ListNode[];
 }
 
@@ -189,10 +236,6 @@ interface Ctx {
  * param asks for one. A `pos` value (LeetCode's cycle index) is consumed to
  * wire a cycle into the linked-list argument instead of being reported as an
  * unknown arg.
- *
- * In `indexMode` (input has `pos` and the function returns a node, e.g. Linked
- * List Cycle II), the result is reported as the *index* of that node rather
- * than serialised as an array (which a cycle can't be).
  */
 function bindArgs(
   sig: Signature,
@@ -229,13 +272,19 @@ function bindArgs(
   let nodes: ListNode[] = [];
   sig.params.forEach((p, i) => {
     const kind = paramKind(p);
-    if (kind === "list" && Array.isArray(args[i])) {
-      const [head, built] = buildLinkedListWithNodes(args[i] as number[], pos);
+    const val = args[i];
+    if (!Array.isArray(val)) return;
+    if (kind === "list") {
+      const [head, built] = buildLinkedListWithNodes(val as number[], pos);
       args[i] = head;
       nodes = built;
       usedPos = true;
-    } else if (kind === "tree" && Array.isArray(args[i])) {
-      args[i] = buildTree(args[i] as (number | null)[]);
+    } else if (kind === "tree") {
+      args[i] = buildTree(val as (number | null)[]);
+    } else if (kind === "lists") {
+      args[i] = val.map((v) => (Array.isArray(v) ? buildLinkedList(v as number[]) : v));
+    } else if (kind === "trees") {
+      args[i] = val.map((v) => (Array.isArray(v) ? buildTree(v as (number | null)[]) : v));
     }
   });
 
@@ -246,27 +295,45 @@ function bindArgs(
     args,
     unknown: usedPos ? unknown.filter((u) => u !== "pos") : unknown,
     missing,
-    ctx: { indexMode: "pos" in kwargs && annotationKind(sig.returnType) === "list", nodes },
+    ctx: { hasCycleInput: usedPos && "pos" in kwargs, nodes },
   };
 }
 
-/** Serialise a ListNode/TreeNode result back to LeetCode notation. */
-function convertOutput(sig: Signature, actual: unknown, ctx: Ctx): unknown {
+/**
+ * Serialise a ListNode/TreeNode result back to LeetCode notation.
+ *
+ * Cycle problems that return a node (e.g. Linked List Cycle II) can't be
+ * serialised as an array, so when the input had a `pos` and the function
+ * returns (or is annotated to return) a node, the result is reported as the
+ * node's *index* in the input list (`indexed: true`), or null for no cycle.
+ */
+function convertOutput(sig: Signature, actual: unknown, ctx: Ctx): { value: unknown; indexed: boolean } {
   let kind = annotationKind(sig.returnType);
+  const returnsNode = kind === "list" ||
+    (!sig.returnType && (actual === null || actual === undefined || actual instanceof ListNode));
+  if (ctx.hasCycleInput && returnsNode) {
+    if (actual === null || actual === undefined) return { value: null, indexed: true };
+    const idx = ctx.nodes.indexOf(actual as ListNode);
+    return { value: idx >= 0 ? idx : -2, indexed: true }; // -2: node not in the input list
+  }
   if (kind === null) {
-    if (actual instanceof ListNode) kind = "list";
-    else if (actual instanceof TreeNode) kind = "tree";
+    const sample = Array.isArray(actual) ? actual.find((v) => v !== null && v !== undefined) : actual;
+    if (sample instanceof ListNode) kind = Array.isArray(actual) ? "lists" : "list";
+    else if (sample instanceof TreeNode) kind = Array.isArray(actual) ? "trees" : "tree";
   }
-  if (kind === "list") {
-    if (ctx.indexMode) {
-      if (actual === null || actual === undefined) return null;
-      const idx = ctx.nodes.indexOf(actual as ListNode);
-      return idx >= 0 ? idx : -2; // node not part of the input list -> clearly wrong
-    }
-    return linkedListToList(actual as ListNode | null);
+  const asArray = (v: unknown[]): unknown[] => (Array.isArray(v) ? v : []);
+  switch (kind) {
+    case "list":
+      return { value: linkedListToList(actual as ListNode | null), indexed: false };
+    case "tree":
+      return { value: treeToList(actual as TreeNode | null), indexed: false };
+    case "lists":
+      return { value: asArray(actual as unknown[]).map((n) => linkedListToList(n as ListNode | null)), indexed: false };
+    case "trees":
+      return { value: asArray(actual as unknown[]).map((n) => treeToList(n as TreeNode | null)), indexed: false };
+    default:
+      return { value: actual, indexed: false };
   }
-  if (kind === "tree") return treeToList(actual as TreeNode | null);
-  return actual;
 }
 
 /**
@@ -400,6 +467,13 @@ export function runTests(fn: SolutionFn, options: RunOptions = {}): number {
   const fromSource = caller && existsSync(caller)
     ? parseSignature(readFileSync(caller, "utf-8"), fn.name)
     : null;
+  if (!fromSource) {
+    console.log(dim(fn.name
+      ? `  couldn't find function ${fn.name}(...) in ${caller ?? "the calling file"}; ` +
+        "binding args by parameter name only (ListNode/TreeNode detected by name)"
+      : "  runTests got an anonymous function; pass your solution function itself, " +
+        "e.g. runTests(twoSum)"));
+  }
   const sig = fromSource ?? signatureFromFunction(fn);
 
   const label = `${fn.name || "solution"}()`;
@@ -417,7 +491,18 @@ export function runTests(fn: SolutionFn, options: RunOptions = {}): number {
 
     const { args, unknown, missing, ctx } = bindArgs(sig, tc.kwargs);
     if (unknown.length) console.log(dim(`  case ${i}: ignoring unknown arg(s): ${fmt(unknown)}`));
-    if (missing.length) console.log(dim(`  case ${i}: no value for arg(s): ${fmt(missing)}`));
+    if (missing.length) {
+      // Python fails these with a TypeError; JS would silently pass undefined.
+      // Without the real signature, optional params can't be told apart, so
+      // only warn in that case.
+      if (fromSource) {
+        failures++;
+        console.log(red(`✗ case ${i}: no value for required arg(s) ${fmt(missing)}`) + dim(`  ${tc.raw}`));
+        console.log(dim("    check the example's argument names match your function's parameters\n"));
+        return;
+      }
+      console.log(dim(`  case ${i}: no value for arg(s): ${fmt(missing)}`));
+    }
 
     let actual: unknown;
     try {
@@ -431,7 +516,8 @@ export function runTests(fn: SolutionFn, options: RunOptions = {}): number {
       return;
     }
 
-    actual = convertOutput(sig, actual, ctx);
+    const { value, indexed } = convertOutput(sig, actual, ctx);
+    actual = value;
 
     if (!tc.hasExpected) {
       console.log(dim(`· case ${i}  input: ${tc.raw}`));
@@ -439,7 +525,7 @@ export function runTests(fn: SolutionFn, options: RunOptions = {}): number {
       return;
     }
 
-    const expected = ctx.indexMode ? indexExpected(tc.expected) : tc.expected;
+    const expected = indexed ? indexExpected(tc.expected) : tc.expected;
     const equal = options.unordered
       ? deepEqual(normaliseUnordered(actual), normaliseUnordered(expected))
       : deepEqual(actual, expected);

@@ -310,3 +310,6 @@ __marimo__/
 problems/*
 !problems/0219-contains-duplicate-ii/
 !problems/0219-contains-duplicate-ii/**
+
+# TypeScript harness
+node_modules/

@@ -11,6 +11,7 @@ The free LeetCode web editor gives you a textarea. No breakpoints, no autocomple
 no stepping through your logic when a case fails. This harness pulls the **real
 problem skeleton and the real example test cases** down to your machine, so you can
 solve problems the way you actually write code — in your editor, with a debugger.
+Practise in **Python** or **[TypeScript](#typescript)**.
 
 ```bash
 uv run lc new 219     # scaffold problem #219 (skeleton + tests, fetched from LeetCode)
@@ -163,6 +164,45 @@ Running 3 case(s) against Solution.containsNearbyDuplicate()
 
 2/3 passed
 ```
+
+---
+
+## TypeScript
+
+Same workflow, same `test_cases.txt`: pass `--lang ts` to scaffold a
+`solution.ts` with LeetCode's real TypeScript skeleton.
+
+```bash
+npm install                  # once: TypeScript + Node types, for editor type-checking
+uv run lc new 219 --lang ts  # adds solution.ts (keeps an existing test_cases.txt)
+uv run lc run 219            # auto-detects the language; --lang ts if a problem has both
+```
+
+Needs **Node 22.18+**, which runs `.ts` files directly by stripping the types, so
+there's no build step. Running one is just `node problems/0219-.../solution.ts`.
+The scaffold ends with `runTests(containsNearbyDuplicate)`; pass options there:
+
+```ts
+runTests(groupAnagrams, { unordered: true });
+runTests(containsNearbyDuplicate, { only: 3 });   // or LC_ONLY=3 / --only 3
+```
+
+- Example arg names are matched to your function's parameter names by reading its
+  signature from the file, so keep `runTests(...)` pointing at the function you're
+  solving.
+- `head: ListNode | null` / `root: TreeNode | null` params get real nodes, including
+  `pos` cycles and Cycle II's node-index output. Import `ListNode` / `TreeNode` from
+  `"#harness"` (the scaffold does this when the skeleton uses them).
+- Values compare the JavaScript way: `true` doesn't equal `1`, and integers above
+  2⁵³ lose precision, the same as LeetCode's own TypeScript judge.
+
+**Debugging** — **IntelliJ IDEA Ultimate** (or WebStorm): set the Node interpreter
+to Node 22.18+ (Settings → Languages & Frameworks → Node.js), then right-click a
+`solution.ts` → **Debug**. **VS Code**: open a `solution.ts` and pick
+"Debug current LeetCode TS solution". IntelliJ Community and PyCharm Community
+can't debug JavaScript/TypeScript.
+
+Harness tests: `npm test`. Type-check everything, solutions included: `npm run typecheck`.
 
 ---
 

@@ -201,7 +201,8 @@ runTests(containsNearbyDuplicate, { only: 3 });   // or LC_ONLY=3 / --only 3
   `pos` cycles and Cycle II's node-index output. Import `ListNode` / `TreeNode` from
   `"#harness"` (the scaffold does this when the skeleton uses them).
 - Params typed as arrays of nodes (`Array<ListNode | null>`, `TreeNode[]`, e.g. Merge
-  k Sorted Lists) are converted element by element, both ways.
+  k Sorted Lists) are converted element by element, both ways. (TypeScript only
+  for now: the Python runner treats `List[Optional[ListNode]]` as a single list.)
 - A required parameter that gets no value from the example (e.g. the names don't
   match) fails the case, as Python's `TypeError` does, rather than silently
   passing `undefined`.

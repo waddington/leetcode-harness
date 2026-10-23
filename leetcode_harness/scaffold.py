@@ -116,7 +116,7 @@ def _ts_solution_file(problem: Problem, skeleton: str) -> str:
     # in a comment, so import the real ones from the harness.
     imports = ["runTests"] + [n for n in ("ListNode", "TreeNode") if re.search(rf"\b{n}\b", code)]
 
-    m = re.search(r"\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)\s*(?:<[^(]*>)?\s*\(", code)
+    m = re.search(r"\bfunction\b\s*\*?\s*([A-Za-z_$][\w$]*)\s*(?:<[^(]*>)?\s*\(", code)
     if m:
         run_line = f"runTests({m.group(1)});"
     else:

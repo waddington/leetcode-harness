@@ -17,6 +17,7 @@ import runpy
 import shutil
 import subprocess
 import sys
+import traceback
 
 from .scaffold import PROBLEMS_DIR, SOLUTION_FILES, create_problem
 
@@ -112,7 +113,13 @@ def _run_solution(lang: str, sol: str) -> int:
     if lang == "ts":
         return _run_ts(sol)
     # Execute solution.py as __main__ so its run_tests(Solution) call fires.
-    runpy.run_path(sol, run_name="__main__")
+    try:
+        runpy.run_path(sol, run_name="__main__")
+    except Exception:
+        # e.g. a NameError at module level: report it, but let any other
+        # language's solution still run.
+        traceback.print_exc()
+        return 1
     return 0
 
 

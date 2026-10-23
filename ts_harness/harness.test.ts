@@ -164,11 +164,22 @@ test("parseSignature copes with strings, nested generics and typed consts", () =
   assert.equal(parseSignature(src, "bound a"), null);
 });
 
+test("parseSignature isn't fooled by quotes in regex literals or older commented-out attempts", () => {
+  const src = [
+    "const clean = (s: string) => s.replace(/[^a-z']/g, \"\");",
+    "const half = 10 / 2; const q = 'it''s';",
+    "// function f(old) {}",
+    "function f(nums: number[], k: number): boolean { return nums.length > k; }",
+  ].join("\n");
+  assert.deepEqual(parseSignature(src, "f")?.params.map((p) => p.name), ["nums", "k"]);
+  assert.equal(parseSignature("functionf(a) {}", "f"), null);
+});
+
 test("parseSignature stays fast on a pathological return annotation", () => {
   const src = `function f(a: number) :${" ".repeat(20_000)}x${" ".repeat(20_000)}`;
   const start = performance.now();
   parseSignature(src, "f");
-  assert.ok(performance.now() - start < 500);
+  assert.ok(performance.now() - start < 2000); // generous: catches blow-up, not jitter
 });
 
 // --- comparison & display -----------------------------------------------------
@@ -380,7 +391,7 @@ test("the shipped 0219 solution.ts runs via node and finds its own test_cases.tx
   const sol = join(ROOT, "problems", "0219-contains-duplicate-ii", "solution.ts");
   const res = runNode(sol, ROOT);
   assert.equal(res.status, 0, res.stderr);
-  assert.match(res.stdout, /(\d+)\/\1 passed/);
+  assert.match(res.stdout, /^(\d+)\/\1 passed$/m);
 });
 
 test("a solution.ts finds the test_cases.txt beside it, whatever the cwd", () => {

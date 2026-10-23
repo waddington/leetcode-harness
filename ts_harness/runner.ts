@@ -75,11 +75,10 @@ function stripComments(src: string): string {
   let out = "";
   for (let i = 0; i < src.length; i++) {
     const ch = src[i];
-    if (ch === '"' || ch === "'" || ch === "`") {
-      let j = i + 1;
-      while (j < src.length && src[j] !== ch) j += src[j] === "\\" ? 2 : 1;
-      out += src.slice(i, j + 1);
-      i = j;
+    const end = literalEnd(src, i, out);
+    if (end > i) {
+      out += src.slice(i, end);
+      i = end - 1;
     } else if (ch === "/" && src[i + 1] === "/") {
       while (i < src.length && src[i] !== "\n") i++;
       out += "\n";
@@ -94,19 +93,44 @@ function stripComments(src: string): string {
   return out;
 }
 
+/**
+ * If a string, template or regex literal starts at `src[i]`, return the index
+ * just past it; otherwise return `i`. `before` is the code preceding `i`, used
+ * to tell a regex `/.../` from division. Quote strings end at a newline (JS
+ * strings can't span lines), so a stray quote can't swallow the rest of a file.
+ */
+function literalEnd(src: string, i: number, before: string): number {
+  const ch = src[i];
+  if (ch === '"' || ch === "'" || ch === "`") {
+    let j = i + 1;
+    while (j < src.length && src[j] !== ch && (ch === "`" || src[j] !== "\n")) {
+      j += src[j] === "\\" ? 2 : 1;
+    }
+    return Math.min(j + 1, src.length);
+  }
+  if (ch === "/" && src[i + 1] !== "/" && src[i + 1] !== "*" &&
+      /(^|[(,=:[!&|?{};]|\breturn)$/.test(before.trimEnd())) {
+    let inClass = false;
+    for (let j = i + 1; j < src.length && src[j] !== "\n"; j++) {
+      if (src[j] === "\\") j++;
+      else if (src[j] === "[") inClass = true;
+      else if (src[j] === "]") inClass = false;
+      else if (src[j] === "/" && !inClass) return j + 1;
+    }
+  }
+  return i;
+}
+
 /** Split a parameter list on top-level commas, respecting generics and strings. */
 function splitParams(text: string): string[] {
   const parts: string[] = [];
   let depth = 0;
-  let inStr: string | null = null;
   let start = 0;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
-    if (inStr) {
-      if (ch === "\\") i++;
-      else if (ch === inStr) inStr = null;
-    } else if (ch === '"' || ch === "'" || ch === "`") {
-      inStr = ch;
+    const end = literalEnd(text, i, text.slice(start, i));
+    if (end > i) {
+      i = end - 1;
     } else if ("([{<".includes(ch)) {
       depth++;
     } else if (")]}".includes(ch) || (ch === ">" && text[i - 1] !== "=")) {
@@ -132,7 +156,7 @@ export function parseSignature(source: string, fnName: string): Signature | null
   const src = stripComments(source);
   const name = fnName.replace(/[$]/g, "\\$"); // the only regex metachar an identifier can hold
   const re = new RegExp(
-    `(?:\\bfunction\\s*\\*?\\s*${name}\\s*(?:<[^(]*>)?\\s*\\(` +
+    `(?:\\bfunction\\b\\s*\\*?\\s*${name}\\s*(?:<[^(]*>)?\\s*\\(` +
       `|\\b(?:const|let|var)\\s+${name}\\s*(?::[^=]*(?:=>[^=]*)*)?=\\s*(?:async\\s+)?(?:function\\b[^(]*)?\\()`,
   );
   const m = re.exec(src);

@@ -1,0 +1,63 @@
+[
+  {
+    "name": "named args and a boolean output",
+    "text": "Input: nums = [1,2,3,1], k = 3\nOutput: true",
+    "cases": [{ "kwargs": { "nums": [1, 2, 3, 1], "k": 3 }, "expected": true, "hasExpected": true }]
+  },
+  {
+    "name": "commas and literal words inside quoted strings",
+    "text": "Input: s = \"a, null\", t = 'true, b'\nOutput: \"null\"",
+    "cases": [{ "kwargs": { "s": "a, null", "t": "true, b" }, "expected": "null", "hasExpected": true }]
+  },
+  {
+    "name": "comments, blank lines, multi-line input, several cases",
+    "text": "# a comment\n\nInput: grid = [[1,0],\n[0,1]]\nOutput: 2\n\nInput: grid = []\nOutput: 0",
+    "cases": [
+      { "kwargs": { "grid": [[1, 0], [0, 1]] }, "expected": 2, "hasExpected": true },
+      { "kwargs": { "grid": [] }, "expected": 0, "hasExpected": true }
+    ]
+  },
+  {
+    "name": "single positional value",
+    "text": "Input: [1,2,3]\nOutput: 6",
+    "cases": [{ "kwargs": { "_": [1, 2, 3] }, "expected": 6, "hasExpected": true }]
+  },
+  {
+    "name": "missing or empty output",
+    "text": "Input: x = 1\nInput: x = 2\nOutput:",
+    "cases": [
+      { "kwargs": { "x": 1 }, "expected": null, "hasExpected": false },
+      { "kwargs": { "x": 2 }, "expected": null, "hasExpected": false }
+    ]
+  },
+  {
+    "name": "null output and nulls in arrays",
+    "text": "Input: root = [3,9,20,null,null,15,7]\nOutput: null",
+    "cases": [{ "kwargs": { "root": [3, 9, 20, null, null, 15, 7] }, "expected": null, "hasExpected": true }]
+  },
+  {
+    "name": "LeetCode's verbatim cycle text stays a string",
+    "text": "Input: head = [3,2,0,-4], pos = 1\nOutput: tail connects to node index 1",
+    "cases": [{ "kwargs": { "head": [3, 2, 0, -4], "pos": 1 }, "expected": "tail connects to node index 1", "hasExpected": true }]
+  },
+  {
+    "name": "negative numbers, floats and exponents",
+    "text": "Input: x = -3, y = 2.5\nOutput: 1e3",
+    "cases": [{ "kwargs": { "x": -3, "y": 2.5 }, "expected": 1000, "hasExpected": true }]
+  },
+  {
+    "name": "Python-style True/False/None",
+    "text": "Input: flags = [True, False, None]\nOutput: False",
+    "cases": [{ "kwargs": { "flags": [true, false, null] }, "expected": false, "hasExpected": true }]
+  },
+  {
+    "name": "nested strings and an object output",
+    "text": "Input: strs = [\"eat\",\"tea\"]\nOutput: {\"aet\": [\"eat\", \"tea\"]}",
+    "cases": [{ "kwargs": { "strs": ["eat", "tea"] }, "expected": { "aet": ["eat", "tea"] }, "hasExpected": true }]
+  },
+  {
+    "name": "Expected: label and a leading bullet",
+    "text": "- Input: n = 5\n- Expected: 120",
+    "cases": [{ "kwargs": { "n": 5 }, "expected": 120, "hasExpected": true }]
+  }
+]

@@ -49,7 +49,8 @@ This creates `.venv` and installs the harness as an editable package, so
 A shared run config **"Debug current solution"** is included — it runs whatever
 `solution.py` you have open, using `.venv`. Open a `problems/*/solution.py`, set
 breakpoints, and hit **Run** ▶ / **Debug** 🐞. (Or just use the green gutter arrow
-next to `if __name__ == "__main__":`.)
+next to `if __name__ == "__main__":`.) It's Python-only; for `solution.ts` see
+[TypeScript](#typescript).
 
 **VS Code** — a launch config ("Debug current LeetCode solution") is included.
 Open a `solution.py` and press **F5**.
@@ -146,7 +147,8 @@ From your IDE: open `solution.py`, set breakpoints in your method, hit **Debug**
 Or from the terminal:
 
 ```bash
-uv run lc run 219          # by number
+uv run lc run 219          # by number (runs every language the problem has)
+uv run lc run 219 --lang py   # just one language
 uv run lc run contains     # by partial name
 uv run lc list             # list all scaffolded problems
 ```
@@ -175,8 +177,13 @@ Same workflow, same `test_cases.txt`: pass `--lang ts` to scaffold a
 ```bash
 npm install                  # once: TypeScript + Node types, for editor type-checking
 uv run lc new 219 --lang ts  # adds solution.ts (keeps an existing test_cases.txt)
-uv run lc run 219            # auto-detects the language; --lang ts if a problem has both
+uv run lc run 219            # runs solution.py and solution.ts if both exist
+uv run lc run 219 --lang ts  # just the TypeScript one
 ```
+
+`test_cases.txt` is shared by both languages, so `lc new` never overwrites an
+existing one — `--force` only regenerates the solution file. Delete
+`test_cases.txt` and re-run `lc new` to re-fetch the examples.
 
 Needs **Node 22.18+**, which runs `.ts` files directly by stripping the types, so
 there's no build step. Running one is just `node problems/0219-.../solution.ts`.
@@ -193,16 +200,26 @@ runTests(containsNearbyDuplicate, { only: 3 });   // or LC_ONLY=3 / --only 3
 - `head: ListNode | null` / `root: TreeNode | null` params get real nodes, including
   `pos` cycles and Cycle II's node-index output. Import `ListNode` / `TreeNode` from
   `"#harness"` (the scaffold does this when the skeleton uses them).
+- Params typed as arrays of nodes (`Array<ListNode | null>`, `TreeNode[]`, e.g. Merge
+  k Sorted Lists) are converted element by element, both ways.
+- A required parameter that gets no value from the example (e.g. the names don't
+  match) fails the case, as Python's `TypeError` does, rather than silently
+  passing `undefined`.
 - Values compare the JavaScript way: `true` doesn't equal `1`, and integers above
-  2⁵³ lose precision, the same as LeetCode's own TypeScript judge.
+  2⁵³ lose precision, the same as LeetCode's own TypeScript judge. Test values are
+  JSON-style literals (plus `'single quotes'` and `True`/`None`), not arbitrary
+  Python literals like tuples.
 
 **Debugging** — **IntelliJ IDEA Ultimate** (or WebStorm): set the Node interpreter
 to Node 22.18+ (Settings → Languages & Frameworks → Node.js), then right-click a
-`solution.ts` → **Debug**. **VS Code**: open a `solution.ts` and pick
+`solution.ts` → **Debug**. The project's TypeScript (`node_modules/typescript`,
+pinned to 6.x so the IDE's language service can use it) does the type-checking. **VS Code**: open a `solution.ts` and pick
 "Debug current LeetCode TS solution". IntelliJ Community and PyCharm Community
 can't debug JavaScript/TypeScript.
 
-Harness tests: `npm test`. Type-check everything, solutions included: `npm run typecheck`.
+Harness tests: `npm test` (TypeScript) and `uv run python -m unittest discover -s tests`
+(Python, including a parser fixture both languages must agree on). Type-check
+everything, solutions included: `npm run typecheck`.
 
 ---
 

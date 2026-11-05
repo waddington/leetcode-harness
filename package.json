@@ -1,0 +1,22 @@
+{
+  "name": "leetcode-harness",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypeScript runtime for the local LeetCode practice harness.",
+  "license": "MIT",
+  "type": "module",
+  "imports": {
+    "#harness": "./ts_harness/index.ts"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "test": "node --test \"ts_harness/**/*.test.ts\"",
+    "typecheck": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "typescript": "6.0.3"
+  }
+}

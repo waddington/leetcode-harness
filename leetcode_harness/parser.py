@@ -11,6 +11,9 @@ example text *verbatim* from the problem page and it just works.
 
 Supported value literals are Python literals plus the LeetCode JSON-isms
 `true`/`false`/`null`, which get normalised to `True`/`False`/`None`.
+
+Keep in sync with the TypeScript port, ts_harness/parser.ts: both read the
+same test_cases.txt files (tests/fixtures/parser_cases.json checks parity).
 """
 
 from __future__ import annotations
@@ -33,16 +36,18 @@ class TestCase:
     raw: str = ""
 
 
+# A quoted string (left untouched) or one of the JSON literal words.
+_QUOTED_OR_WORD_RE = re.compile(r""""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b(?:true|false|null)\b""")
+
+
 def _normalise_literals(text: str) -> str:
     """Replace LeetCode's JSON-style tokens with Python equivalents.
 
-    Done as whole-word replacements so we don't clobber identifiers or string
-    contents like "nullable".
+    Done as whole-word replacements outside quoted strings, so we don't
+    clobber identifiers ("nullable") or string contents ("null").
     """
-    text = re.sub(r"\btrue\b", "True", text)
-    text = re.sub(r"\bfalse\b", "False", text)
-    text = re.sub(r"\bnull\b", "None", text)
-    return text
+    words = {"true": "True", "false": "False", "null": "None"}
+    return _QUOTED_OR_WORD_RE.sub(lambda m: words.get(m.group(0), m.group(0)), text)
 
 
 def parse_value(text: str) -> object:

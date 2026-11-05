@@ -9,6 +9,15 @@
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "justMyCode": false
+    },
+    {
+      "name": "Debug current LeetCode TS solution",
+      "type": "node",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "skipFiles": ["<node_internals>/**"]
     }
   ]
 }

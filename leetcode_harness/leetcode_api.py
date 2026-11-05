@@ -1,7 +1,8 @@
 """Fetch problem metadata from LeetCode's public GraphQL API.
 
-Used by `lc new <number>` to scaffold a problem: title, slug, the Python
-code skeleton, and the example test cases parsed out of the HTML statement.
+Used by `lc new <number>` to scaffold a problem: title, slug, the Python and
+TypeScript code skeletons, and the example test cases parsed out of the HTML
+statement.
 
 Network is optional — if it fails (offline, rate-limited), the scaffolder
 falls back to an empty template you fill in by hand.
@@ -32,6 +33,7 @@ class Problem:
     title: str
     slug: str
     skeleton: str = ""           # Python class Solution skeleton
+    ts_skeleton: str = ""        # TypeScript function skeleton
     examples_text: str = ""      # extracted "Input:/Output:" lines
     difficulty: str = ""
     url: str = field(default="")
@@ -74,9 +76,10 @@ query questionData($titleSlug: String!) {
 """
 
 
-def _python_skeleton(snippets: list[dict]) -> str:
+def _skeleton(snippets: list[dict], *lang_slugs: str) -> str:
+    """First code snippet matching one of `lang_slugs`, in order of preference."""
     by_lang = {s["langSlug"]: s["code"] for s in snippets or []}
-    return by_lang.get("python3") or by_lang.get("python") or ""
+    return next((by_lang[slug] for slug in lang_slugs if by_lang.get(slug)), "")
 
 
 def extract_examples(html_content: str) -> str:
@@ -111,6 +114,7 @@ def fetch_problem(number: int) -> Problem:
         title=q.get("title") or title,
         slug=q.get("titleSlug") or slug,
         difficulty=q.get("difficulty") or "",
-        skeleton=_python_skeleton(q.get("codeSnippets")),
+        skeleton=_skeleton(q.get("codeSnippets"), "python3", "python"),
+        ts_skeleton=_skeleton(q.get("codeSnippets"), "typescript"),
         examples_text=extract_examples(q.get("content") or ""),
     )
